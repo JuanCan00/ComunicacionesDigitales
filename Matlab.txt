@@ -1,0 +1,76 @@
+% Cargar los datos de los archivos .txt
+archivo1 = '512_muestras.txt'; % Nombre del primer archivo
+archivo2 = '512_fft.txt'; % Nombre del segundo archivo
+datos1 = load(archivo1);
+datos2 = load(archivo2);
+
+% Extraer los valores de tiempo y voltaje del primer archivo
+tiempo1 = datos1(:,1);
+voltaje1 = datos1(:,2);
+
+% Parámetros de la señal de referencia
+Vpp = 2; % Voltaje pico a pico
+Vdc = 1.5; % Offset DC
+f_ref = 200; % Frecuencia en Hz
+
+% Determinar la frecuencia de la señal muestreada
+fs = 1 / mean(diff(tiempo1)); % Frecuencia de muestreo
+N = length(voltaje1);
+frecuencia = abs(fft(voltaje1));
+frecuencia(1) = 0; % Eliminar DC
+[max_val, index] = max(frecuencia(1:N/2));
+freq_senal = (index - 1) * fs / N;
+
+% Extraer dos ciclos de la señal
+T = 1 / freq_senal; % Periodo
+tiempo_dos_ciclos = tiempo1(tiempo1 <= (2*T));
+voltaje_dos_ciclos = voltaje1(1:length(tiempo_dos_ciclos));
+
+% Definir un ajuste manual del desfase (en segundos)
+ajuste_manual = 0; % Modifica este valor según lo necesites
+
+% Calcular el desfase óptimo usando correlación cruzada
+seno_ref_temp = (Vpp/2) * sin(2 * pi * f_ref * tiempo_dos_ciclos) + Vdc;
+[corr, lag] = xcorr(voltaje_dos_ciclos, seno_ref_temp);
+[~, idx] = max(corr);
+desfase_optimo = lag(idx) / fs;
+
+% Aplicar el ajuste manual al desfase
+desfase_total = desfase_optimo + ajuste_manual;
+
+% Generar la señal de referencia continua ajustada con el desfase total
+tiempo_continuo = linspace(min(tiempo_dos_ciclos), max(tiempo_dos_ciclos), 1000);
+seno_ref = (Vpp/2) * sin(2 * pi * f_ref * (tiempo_continuo - desfase_total)) + Vdc;
+
+% Mostrar el desfase calculado y el ajuste manual
+disp(['Desfase óptimo: ', num2str(desfase_optimo), ' segundos']);
+disp(['Ajuste manual aplicado: ', num2str(ajuste_manual), ' segundos']);
+disp(['Desfase total: ', num2str(desfase_total), ' segundos']);
+
+% Graficar la señal muestreada con stem y la señal de referencia ajustada
+figure;
+stem(tiempo_dos_ciclos, voltaje_dos_ciclos, 'b', 'LineWidth', 1.5);
+hold on;
+plot(tiempo_continuo, seno_ref, 'r', 'LineWidth', 1.5);
+hold off;
+grid on;
+title('Señal Muestreada y Señal de Referencia Ajustada 200Hz');
+xlabel('Tiempo (s)');
+ylabel('Voltaje (V)');
+legend('Muestreo', 'Referencia Ajustada');
+
+% Extraer los valores de tiempo y voltaje del segundo archivo
+tiempo2 = datos2(:,1);
+voltaje2 = datos2(:,2);
+
+% Graficar la segunda señal en una nueva figura
+figure;
+plot(tiempo2, voltaje2, 'b', 'LineWidth', 1.5);
+grid on;
+hold on;
+h = stem(tiempo2, voltaje2);
+h.Color = [0.5 0 0.5];
+title('FFT 200Hz');
+xlabel('Frecuencia (Hz)');
+ylabel(['Potencia (dBm)']);
+legend('Señal 2');
